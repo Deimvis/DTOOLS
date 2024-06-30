@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+source $DTOOLS/lib/internal/py/core
+source $DTOOLS/lib/utils
+
+# PATH__add_permanently adds new path to PATH variable if PATH doesn't have it already
+function PATH__add_permanently() {
+    # NOTE: support zsh and other shells
+    local path="$1"
+    # if path doesn't contain $1
+    if ! py3_bool "'$path'.rstrip('/') in [p.rstrip('/') for p in os.getenv('PATH').strip().split(':')]"; then
+        export_cmd="export PATH=\"\$PATH:$path\""
+        # if bashrc doesn't contain export of $1
+        echo "add to PATH"
+        if ! grep -q "$export_cmd" ~/.bashrc; then
+            echo "add to bashrc"
+            echo >> ~/.bashrc
+            echo "$export_cmd" >> ~/.bashrc
+        fi
+        source ~/.bashrc
+    fi
+}

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+source $DTOOLS/lib/PATH
+
+# is supposed to be compatible with docker env file syntax:
+# https://docs.docker.com/compose/environment-variables/env-file/
+
+# usage: # usage: env__exenvexenv .env
+
+function env__exenv() {
+    local path="$1"
+    IFS=$'\n'
+    for line in $(cat "$path" | grep -v '^#'); do
+        export "$line"
+    done
+}

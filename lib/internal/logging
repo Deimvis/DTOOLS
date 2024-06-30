@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+exec 3>&1
+
+log() {
+    log_raw "LOG: $1"
+}
+
+log_debug() {
+    log_raw "DEBUG: $1"
+}
+
+log_info() {
+    log_raw "INFO: $1"
+}
+
+log_warn() {
+    log_raw "WARN: $1"
+}
+
+log_error() {
+    log_raw "ERROR: $1"
+}
+
+log_raw() {
+    echo "$1" 1>&3
+}

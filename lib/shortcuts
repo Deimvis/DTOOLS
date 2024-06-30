@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+source $DTOOLS/lib/docker_registry
+source $DTOOLS/lib/utils
+
+### GENERIC shortcuts
+
+function SSH() {
+    ssh -t -o LogLevel=QUIET -o "StrictHostKeyChecking no" -i $SSH_PKEY $SSH_USER@$SSH_HOST $@
+}
+
+function SSH_DC() {
+    SSH "sudo docker-compose -f $REMOTE_WORKDIR/docker-compose.yaml $@"
+}
+
+function SSHf() {
+    local fn="$1"
+    SSH "$(typeset -f); $fn ${@:2}"
+}
+
+function SCP {
+    local src=$1
+    local dst_dir=$2
+    SSH "mkdir -p \"$(dirname $dst_dir)\""
+    scp -i $SSH_PKEY -r $src $SSH_USER@$SSH_HOST:$dst_dir
+}
+
+function RSCP() {
+    local src_dir=$1
+    local dst_dir=$2
+    mkdir -p "$(dirname $dst_dir)"
+    scp -r -i $SSH_PKEY $SSH_USER@$SSH_HOST:$src_dir $dst_dir
+}
+
+### DEPLOY shortcuts
+
+# $@ -- docker-compose service names
+function BUILD_AND_PUSH() {
+    ln -sf .env.vm .env
+    DOCKER_COMPOSE_TMP="docker-compose.yaml.tmp.$_RESOURCE"
+    $DTOOLS/cli/patch_docker_compose --set-platform linux/x86_64 < docker-compose.yaml > $DOCKER_COMPOSE_TMP
+    docker-compose -f $DOCKER_COMPOSE_TMP build "$@"
+    docker-compose -f $DOCKER_COMPOSE_TMP push "$@"
+    rm $DOCKER_COMPOSE_TMP
+}
+
+function SCP_BUNDLE() {
+    local REMOTE_DIR="$1"
+    SSH "mkdir -p $REMOTE_DIR"
+
+    DOCKER_COMPOSE_TMP="docker-compose.yaml.tmp.$_RESOURCE"
+    $DTOOLS/cli/patch_docker_compose --unset-build --unset-depends-on < docker-compose.yaml > $DOCKER_COMPOSE_TMP
+    SCP $DOCKER_COMPOSE_TMP $REMOTE_DIR/docker-compose.yaml
+    rm $DOCKER_COMPOSE_TMP
+
+    ln -sf .env.vm .env
+    SCP $(realpath .env) $REMOTE_DIR/.env
+}
+
+function SETUP_VM() {
+    SSH "sudo apt update -y &> /dev/null"
+    SSH "sudo apt install python3.11 -y &> /dev/null"
+    SSH "sudo apt install docker.io -y &> /dev/null"
+    SSH "sudo apt install docker-compose -y &> /dev/null"
+    SSH "sudo apt install docker-compose-v2 -y &> /dev/null"
+    SSH "sudo apt install postgresql-client -y &> /dev/null"
+    SSH "sudo apt install jq -y &> /dev/null"
+}
+
+function PULL_AND_UP() {
+    SSH_DC pull $@
+    SSH_DC "down"
+    SSH_DC up -d $@
+}
+
+### DOCKER REGISTRY shortcuts
+
+function DR_ENCRYPT_SETUP() {
+    if ! utils__is_true $(dr__has_encryption_helper); then
+        while true; do
+            read -p "Do you want to setup a docker encryption helper to store your credentials encrypted? (~5min) [Y/n] " -n 1
+            echo
+            case "$REPLY" in
+                [yY] )
+                    dr__add_encryption_helper;
+                    break;;
+                [nN] )
+                    break;;
+                * )
+                    echo "Invalid input. Please type 'y' for yes or 'n' for no.";
+            esac
+        done
+    fi
+}
+
+function DR_UPDATE_MIRROR() {
+    mirror="$1"
+    if ! utils__is_true $(dr__has_mirror "$mirror"); then
+        echo "Target docker registry mirror ('$mirror') not found"
+        echo "Start configuring docker registry mirror"
+        dr__add_mirror "$mirror"
+        if [ "$(dr__has_mirror "$mirror")" == "false" ]; then
+            echo "Failed to configure docker registry mirror"
+            exit 1;
+        fi;
+        echo "Successfully configured docker registry mirror"
+    else
+        echo "Mirror is already configured (look at "docker system info")"
+    fi
+}
+
+function DR_YANDEX_AUTH() {
+    local auth_keys="$1"
+    SCP "$auth_keys" /tmp/yc_key.json
+    SSH "cat /tmp/yc_key.json | sudo docker login \
+        --username json_key \
+        --password-stdin \
+        cr.yandex" > /dev/null
+    SSH "rm /tmp/yc_key.json"
+}

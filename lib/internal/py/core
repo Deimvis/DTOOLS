@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+source $DTOOLS/lib/internal/assert
+
+function py3() {
+    local code="$1"
+    local cmd="import sys; import os; sys.stdout.write(str($code))"
+    python3 -c "$cmd"
+}
+
+function py3_bool() {
+    local code="$1"
+    local cmd="import sys; import os; sys.stdout.write(str($code))"
+    res=$(py3 "'$path'.rstrip('/') in [p.rstrip('/') for p in os.getenv('PATH').strip().split(':')]")
+    utils__contains "$res" "True" "False"
+    assert
+    if [ "$res" == "True" ]; then
+        return 0
+    fi
+    return 1
+}

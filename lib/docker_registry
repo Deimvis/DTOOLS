@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+
+source $DTOOLS/lib/PATH
+
+dr__DEFS="dr__has_mirror dr__add_mirror dr__add_encryption_helper _get_docker_daemon_config_path _download_docker_credential_pass"
+
+function dr__has_mirror() {
+    local mirror="$1"
+    sudo docker system info --format json | jq -r ".RegistryConfig.Mirrors | if index(\"${mirror}\") == null then \"false\" else \"true\" end"
+}
+
+function dr__add_mirror() {
+    local mirror="$1"
+    local config_path=$(_get_docker_daemon_config_path)
+    (cat "$config_path" 2>/dev/null || echo "{}") | jq ". + {\"registry-mirrors\": [\"${mirror}\"]}" > /tmp/daemon.json && sudo mv /tmp/daemon.json "$config_path"
+    _restart_docker
+}
+
+function dr__add_encryption_helper() {
+    _download_docker_credential_pass
+    sudo apt-get install -y rng-tools &> /dev/null
+    sudo apt-get install -y pass &> /dev/null
+    key_id=$(sudo gpg --list-secret-keys --with-colons 2> /dev/null \
+                | grep '^sec:' | cut --delimiter ':' --fields 5)
+    if [ -z "$key_id" ]; then
+        sudo gpg --full-generate-key
+    fi
+    key_id=$(sudo gpg --list-secret-keys --with-colons 2> /dev/null \
+                | grep '^sec:' | cut --delimiter ':' --fields 5)
+    sudo pass init "$key_id"
+    (sudo cat /root/.docker/config.json 2>/dev/null || echo "{}") | jq '. + {"credsStore": "pass"}' > /tmp/daemon.json && sudo mv /tmp/daemon.json /root/.docker/config.json
+}
+
+function dr__has_encryption_helper() {
+    # NOTE: also check `docker-credential-pass list` in future
+    (sudo cat /root/.docker/config.json 2>/dev/null || echo "{}") | jq 'has("credsStore")'
+}
+
+### INTERNAL
+
+function _get_docker_daemon_config_path() {
+    os="$(uname -s)"
+    local path
+    if [ "$os" == "Linux" ]; then
+        path="/etc/docker/daemon.json"
+    elif [ "$os" == "Darwin" ]; then
+        path="~/.config/docker/daemon.json"
+    elif [ "$os" == "CYGWIN_NT" ] || [ "$os" == "MINGW32_NT" ] || [ "$os" == "MSYS_NT" ]; then
+        path="C:\ProgramData\docker\config\daemon.json"
+    else
+        echo "Unsupported operating system."
+        exit 1
+    fi
+    echo $path
+}
+
+function _download_docker_credential_pass() {
+    platform2dl_url=$(curl -s https://api.github.com/repos/docker/docker-credential-helpers/releases |
+                      jq '[.[0].assets[] | select(.name | contains("pass")) | {key: (.name | split(".") | last), value: .browser_download_url}] | from_entries')
+
+    # tested on Linux x86_64 and Darwin arm64
+    os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    arch=$(uname -m)
+    if [[ "$arch" == "x86_64" ]]; then
+        arch="amd64"
+    elif [[ "$arch" == "aarch64" ]]; then
+        arch="arm64"
+    elif [[ "$arch" == "armv7l" ]]; then
+        arch="armv7"
+    elif [[ "$arch" == "armhf" ]]; then
+        arch="armv6"
+    fi
+    platform="$os-$arch"
+
+    download_url="$(echo "$platform2dl_url" | jq -r --arg platform "$platform" '.[$platform]')"
+    if [ "$download_url" == "null" ]; then 
+        echo "Failed to automatically detect a proper platform ('$platform' was used)"
+        echo "Please choose a platform manually:"
+        readarray -t available_platforms < <(echo "$platform2dl_url" | jq -r 'keys[]')
+        select platform in "${available_platforms[@]}"
+        do
+            if [[ -n "$platform" ]]; then
+                echo "Platform was chosen: $platform"
+                break
+            else
+                echo "Invalid option. Please try again."
+            fi
+        done
+        download_url="$(echo "$platform2dl_url" | jq -r --arg platform "$platform" '.[$platform]')"
+    fi
+    echo "Downloading credential pass... ($download_url)"
+    sudo curl -s "$download_url" -o /usr/local/bin/docker-credential-pass
+    sudo chmod +x /usr/local/bin/docker-credential-pass
+    PATH__add_permanently /usr/local/bin
+}
+
+function _restart_docker() {
+    os="$(uname -s)"
+    local path
+    if [ "$os" == "Linux" ]; then
+        sudo systemctl restart docker
+    elif [ "$os" == "Darwin" ]; then
+        pkill 'Docker' || true
+        sleep 3
+        open -a Docker
+        sleep 3
+    elif [ "$os" == "CYGWIN_NT" ] || [ "$os" == "MINGW32_NT" ] || [ "$os" == "MSYS_NT" ]; then
+        # NOTE: not tested
+        # https://forums.docker.com/t/restart-docker-service-from-command-line/27331/3
+        restart-service *docker*
+    else
+        echo "Error: unsupported operating system"
+        exit 1
+    fi
+}

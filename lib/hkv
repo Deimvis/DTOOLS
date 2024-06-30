@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+source $DTOOLS/lib/internal/assert
+source $DTOOLS/lib/internal/logging
+
+
+function hkv__export() {
+    hkv_data="{}"
+    hkv_data=$(_try_export "$hkv_data" "${_DEPLOY_DIR}")
+    hkv_data=$(_try_export "$hkv_data" "${_DEPLOY_DIR}/${_DEPLOY_TYPE}")
+    hkv_data=$(_try_export "$hkv_data" "${_DEPLOY_DIR}/${_DEPLOY_TYPE}/${_RESOURCE}")
+    echo "$hkv_data"
+}
+
+function hkv__get() {
+    hkv_data="$1"
+    for (( i=2; i<=$#; i++ )); do
+        key="${!i}"
+        log_debug "Will try get key: '$key'"
+        # echo "$hkv_data" | jq -e ".$ {key}" > /dev/null
+        hkv_data=$(echo "$hkv_data" | jq -e ".${key}")
+        assert
+    done
+    echo "$hkv_data" | jq -r
+}
+
+function _try_export() {
+    hkv_data="$1"
+    dir_path="$2"
+    if [[ -f "$dir_path/hkv.json" ]]; then
+        cat "$dir_path/hkv.json" | _export "$hkv_data"
+    else
+        echo "{}"
+    fi
+}
+
+# export substitutes env vars and exports hkv json from stdin
+function _export() {
+    cat | envsubst | _export_raw "$1"
+}
+
+# _export_raw exports hkv json from stdin
+function _export_raw() {
+    echo "$1 $(cat)" | jq -s add
+}
