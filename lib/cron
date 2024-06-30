@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+function cron__set_raw() {
+    local raw_conf_path="$1"
+    cat "$raw_conf_path" | crontab -
+}
+

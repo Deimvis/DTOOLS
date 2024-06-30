@@ -16,12 +16,19 @@ function SSH_DC() {
 function SSHf() {
     local fn="$1"
     SSH "$(typeset -f); $fn ${@:2}"
+    # printf -v command_str '%q ' "${@}"
+    # ssh_str="$(declare -f); $command_str"
+    # SSH "$ssh_str"
 }
 
 function SCP {
     local src=$1
     local dst_dir=$2
-    SSH "mkdir -p \"$(dirname $dst_dir)\""
+    if [ -d "$src" ]; then
+        SSH "mkdir -p $dst_dir"
+    else
+        SSH "mkdir -p $(dirname $dst_dir)"
+    fi  
     scp -i $SSH_PKEY -r $src $SSH_USER@$SSH_HOST:$dst_dir
 }
 
@@ -35,7 +42,7 @@ function RSCP() {
 ### DEPLOY shortcuts
 
 # $@ -- docker-compose service names
-function BUILD_AND_PUSH() {
+function BUILD_AND_PUSH {
     ln -sf .env.vm .env
     DOCKER_COMPOSE_TMP="docker-compose.yaml.tmp.$_RESOURCE"
     $DTOOLS/cli/patch_docker_compose --set-platform linux/x86_64 < docker-compose.yaml > $DOCKER_COMPOSE_TMP

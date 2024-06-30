@@ -16,8 +16,7 @@ function hkv__get() {
     hkv_data="$1"
     for (( i=2; i<=$#; i++ )); do
         key="${!i}"
-        log_debug "Will try get key: '$key'"
-        # echo "$hkv_data" | jq -e ".$ {key}" > /dev/null
+        log_debug "Will try get key: $key"
         hkv_data=$(echo "$hkv_data" | jq -e ".${key}")
         assert
     done

@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+import argparse
+import logging
+import os
+import telebot
+import subprocess as sp
+import sys
+
+MAX_TG_MESSAGE_LENGTH = 4096
+TG_CHAT_ID = os.getenv('ALERT_TG_CHAT_ID')
+TG_BOT_TOKEN = os.getenv('ALERT_TG_BOT_TOKEN')
+TG_BOT = telebot.TeleBot(TG_BOT_TOKEN)
+
+assert TG_CHAT_ID != ''
+assert TG_BOT_TOKEN != ''
+
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s',
+    datefmt="%d/%b/%Y %H:%M:%S",
+)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--tg', action='store_true', default=True)
+    return parser.parse_known_args()
+
+
+def send_long_message(bot: telebot.TeleBot, chat_id: int, msg_text: str, chunk_size=MAX_TG_MESSAGE_LENGTH, **send_message_kwargs):
+    for chunk_start_ind in range(0, len(msg_text), chunk_size):
+        chunk_end_ind = min(chunk_start_ind + chunk_size, len(msg_text))
+        chunk_text = msg_text[chunk_start_ind:chunk_end_ind]
+        bot.send_message(chat_id, chunk_text, **send_message_kwargs)
+
+
+def send_notifications(level: int, message: str):
+    text = f'<b>{logging.getLevelName(level)}</b>\n{message}'
+    send_long_message(TG_BOT, TG_CHAT_ID, text, parse_mode='HTML')
+
+
+def main():
+    args, subcmd = parse_args()
+    logging.info(f'args={args}, subcmd={subcmd}')
+
+    error_msg = None
+    try:
+        sp.run(subcmd, check=True, stdout=sp.PIPE, stderr=sp.PIPE)
+    except KeyboardInterrupt:
+        pass
+    except sp.CalledProcessError as error:
+        cmd_line = '<code>{}</code>'.format(' '.join(subcmd))
+        stdout=f'- stdout:\n<code>{error.stdout.decode("utf-8").strip()}</code>'
+        stderr=f'- stderr:\n<code>{error.stderr.decode("utf-8").strip()}</code>'
+        error_msg = f'{cmd_line}\n{error}\n{stdout}\n{stderr}'
+    except Exception as error:
+        cmd_line = '<code>{}</code>'.format(' '.join(subcmd))
+        error_msg = f'{cmd_line}\n{error}'
+
+    if error_msg is not None:
+        if args.tg:
+            send_notifications(logging.ERROR, error_msg)
+
+
+if __name__ == '__main__':
+    main()
