@@ -24,6 +24,11 @@ function hkv__get() {
     echo "$hkv_data" | jq -r
 }
 
+function hkv__print() {
+    hkv_data="$1"
+    echo "$hkv_data" | jq
+}
+
 function _try_export() {
     hkv_data="$1"
     dir_path="$2"
