@@ -6,7 +6,7 @@ source $DTOOLS/lib/utils
 ### GENERIC shortcuts
 
 function SSH() {
-    ssh -t -o LogLevel=QUIET -o "StrictHostKeyChecking no" -i $SSH_PKEY $SSH_USER@$SSH_HOST $@
+    ssh -t -o LogLevel=QUIET -o "StrictHostKeyChecking no" -i $SSH_PKEY $SSH_USER@$SSH_HOST "$@"
 }
 
 function SSH_DC() {
@@ -15,10 +15,7 @@ function SSH_DC() {
 
 function SSHf() {
     local fn="$1"
-    SSH "$(typeset -f); $fn ${@:2}"
-    # printf -v command_str '%q ' "${@}"
-    # ssh_str="$(declare -f); $command_str"
-    # SSH "$ssh_str"
+    SSH "$(typeset -f); $fn \"${@:2}\""
 }
 
 function SCP {
