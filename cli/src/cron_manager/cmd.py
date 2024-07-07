@@ -53,7 +53,7 @@ def run_task(args):
     cfg = CronConfig.from_yaml_file(args.config)
     for task in cfg.tasks:
         if task.name == args.task_name:
-            _launch_task(task)
+            _launch_task(task, cfg.global_env)
             return
 
     raise RuntimeError(f'Task not found: {args.task_name}')
@@ -72,8 +72,10 @@ def _set_canonical_cfg(text: str):
     cmd.check_returncode()
 
 
-def _launch_task(task: CronTask):
+def _launch_task(task: CronTask, global_env: dict):
     env = os.environ.copy()
+    for name, value in global_env.items():
+        env[name] = value
     for name, value in task.env.items():
         env[name] = value
     cmd = sp.run(task.cmd, shell=True, env=env)
