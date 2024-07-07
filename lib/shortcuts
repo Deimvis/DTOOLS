@@ -18,6 +18,13 @@ function SSHf() {
     SSH "$(typeset -f); $fn \"${@:2}\""
 }
 
+function SSHcli() {
+    local cli_name="$1" # should be one of cli commands inside $DTOOLS/cli
+    SCP $DTOOLS/cli /tmp/DTOOLS/
+    SSH "/tmp/DTOOLS/cli/deps/install"
+    SSH "/tmp/DTOOLS/cli/$cli_name" "${@:2}"
+}
+
 function SCP {
     local src=$1
     local dst_dir=$2

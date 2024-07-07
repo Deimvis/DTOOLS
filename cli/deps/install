@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+deps=$(dirname "${BASH_SOURCE[0]}")
+requirements="$deps/requirements.txt"
+
+pip install -r "$requirements"
