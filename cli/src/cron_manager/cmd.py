@@ -1,10 +1,11 @@
 import json
+import os
 import re
 import subprocess as sp
 import sys
 from pathlib import Path
 
-from cron_manager.config import CronConfig
+from cron_manager.config import CronConfig, CronTask
 
 
 namespace_start_line_re = re.compile(r'\s*#\s*namespace\s+([^\s]+)\s+{\s+')
@@ -46,6 +47,16 @@ def print_config(args):
     sys.stdout.write(json.dumps(cfg.model_dump(), indent=2))
 
 
+def run_task(args):
+    cfg = CronConfig.from_yaml_file(args.config)
+    for task in cfg.tasks:
+        if task.name == args.task_name:
+            _launch_task(task)
+            return
+
+    raise RuntimeError(f'Task not found: {args.task_name}')
+
+
 def _get_current_canonical_cfg() -> str:
     cmd = sp.run(['crontab', '-l'], stdout=sp.PIPE)
     if cmd.returncode != 0:
@@ -56,4 +67,12 @@ def _get_current_canonical_cfg() -> str:
 
 def _set_canonical_cfg(text: str):
     cmd = sp.run(['crontab', '-'], input=text.encode('utf-8'))
+    cmd.check_returncode()
+
+
+def _launch_task(task: CronTask):
+    env = os.environ.copy()
+    for name, value in task.env.items():
+        env[name] = value
+    cmd = sp.run(task.cmd, shell=True, env=env)
     cmd.check_returncode()

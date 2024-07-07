@@ -5,20 +5,25 @@ from pathlib import Path
 
 
 sys.path.append(str(Path(__file__).parent / 'src'))
-from cron_manager.cmd import apply_config, print_config
+from cron_manager.cmd import apply_config, print_config, run_task
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Cron Manager')
     subparsers = parser.add_subparsers()
     
-    apply_parser = subparsers.add_parser('apply', help='Applies given cron config (overrides only configuration under given namespace)')
+    apply_parser = subparsers.add_parser('apply', help='Apply given cron config (overrides only configuration under given namespace)')
     apply_parser.set_defaults(run=apply_config)
     apply_parser.add_argument('config', type=str, help='Path to cron config')
     
-    print_parser = subparsers.add_parser('print', help='Prints given cron config as canonical cron configuration')
+    print_parser = subparsers.add_parser('print', help='Print given cron config as canonical cron configuration')
     print_parser.set_defaults(run=print_config)
     print_parser.add_argument('config', type=str, help='Path to cron config')
+    
+    print_parser = subparsers.add_parser('run-task', help='Run task from given cron config')
+    print_parser.set_defaults(run=run_task)
+    print_parser.add_argument('config', type=str, help='Path to cron config')
+    print_parser.add_argument('task_name', type=str, help='Task name')
 
     return parser.parse_args()
 
