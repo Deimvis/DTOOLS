@@ -39,6 +39,8 @@ def apply_config(args):
     if not applied:
         new_canonical_cfg += cfg.to_canonical_conf()
 
+    new_canonical_cfg = new_canonical_cfg.strip('\n') + '\n'
+
     _set_canonical_cfg(new_canonical_cfg)
 
 

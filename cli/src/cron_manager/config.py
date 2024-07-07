@@ -7,9 +7,10 @@ from cron_validator import CronValidator
 
 class CronTask(BaseModel):
     name: str
+    env: dict[str, str] = Field(default_factory=dict)
     schedule_expr: str
     cmd: str
-    env: dict[str, str] = Field(default_factory=dict)
+    output_file: str | None = None
     
     @field_validator('schedule_expr')
     @classmethod
@@ -22,7 +23,10 @@ class CronTask(BaseModel):
         builder.comment_line(f'task: {self.name}')
         for name, value in self.env.items():
             builder.env_line(name, value)
-        builder.cmd_line(self.schedule_expr, self.cmd)
+        cmd = self.cmd
+        if self.output_file is not None:
+            cmd += f' > {self.output_file} 2>&1'
+        builder.cmd_line(self.schedule_expr, cmd)
         return builder.build()
 
 
@@ -52,7 +56,7 @@ class CronConfig(BaseModel):
             data = yaml.safe_load(f)
         return CronConfig.model_validate(data)
 
-        
+
 class CanonicalCronConfigBuilder:
     def __init__(self):
         self.text = ''

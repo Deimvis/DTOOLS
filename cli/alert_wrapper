@@ -27,6 +27,7 @@ logging.basicConfig(
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--tg', action='store_true', default=True)
+    parser.add_argument('--shell', action='store_true', default=False)
     return parser.parse_known_args()
 
 
@@ -42,27 +43,48 @@ def send_notifications(level: int, message: str):
     send_long_message(TG_BOT, TG_CHAT_ID, text, parse_mode='HTML')
 
 
+def alert(args, level: int, message: str):
+    if args.tg:
+        send_notifications(level, message)
+
+
 def main():
-    args, subcmd = parse_args()
-    logging.info(f'args={args}, subcmd={subcmd}')
+    args, cmd = parse_args()
+    print(args, cmd)
+    if args.shell:
+        cmd = ' '.join(cmd)
+    logging.info(f'Will run alert_wrapper({args}): `{cmd}`')
 
-    error_msg = None
     try:
-        sp.run(subcmd, check=True, stdout=sp.PIPE, stderr=sp.PIPE)
+        kwargs = dict(stdout=sp.PIPE, stderr=sp.PIPE)
+        if args.shell:
+            kwargs['shell'] = True
+        cmd_proc = sp.run(cmd, **kwargs)
+        logging.info(f'`{cmd}` exited with {cmd_proc.returncode} return code')
+        logging.info(f'Stdout:\n{cmd_proc.stdout.decode("utf-8")}')
+        logging.info(f'Stderr:\n{cmd_proc.stderr.decode("utf-8")}')
     except KeyboardInterrupt:
-        pass
-    except sp.CalledProcessError as error:
-        cmd_line = '<code>{}</code>'.format(' '.join(subcmd))
-        stdout=f'- stdout:\n<code>{error.stdout.decode("utf-8").strip()}</code>'
-        stderr=f'- stderr:\n<code>{error.stderr.decode("utf-8").strip()}</code>'
-        error_msg = f'{cmd_line}\n{error}\n{stdout}\n{stderr}'
+        logging.info('Stopped by Ctrl-C')
+        sys.exit(0)
     except Exception as error:
-        cmd_line = '<code>{}</code>'.format(' '.join(subcmd))
-        error_msg = f'{cmd_line}\n{error}'
+        cmd_str = ' '.join(cmd) if isinstance(cmd, list) else cmd
+        error_msg = '\n'.join([
+            f'<code>{cmd_str}</code>',
+            error,
+        ])
+        alert(args, logging.ERROR, error_msg)
+        sys.exit(1)
 
-    if error_msg is not None:
-        if args.tg:
-            send_notifications(logging.ERROR, error_msg)
+    if cmd_proc.returncode != 0:
+        cmd_str = ' '.join(cmd) if isinstance(cmd, list) else cmd
+        error_msg = '\n'.join([
+            f'<code>{cmd_str}</code>',
+            f'Command returned non-zero exit status {cmd_proc.returncode}',
+            f'- stdout:\n<code>{cmd_proc.stdout.decode("utf-8").strip()}</code>',
+            f'- stderr:\n<code>{cmd_proc.stderr.decode("utf-8").strip()}</code>',
+        ])
+        alert(args, logging.ERROR, error_msg)
+        sys.exit(cmd_proc.returncode)
 
 
 if __name__ == '__main__':
