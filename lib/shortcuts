@@ -72,6 +72,7 @@ function SETUP_VM() {
     SSH "sudo apt update -y &> /dev/null"
     SSH "sudo apt install python3.11 -y &> /dev/null"
     SSH "sudo apt install docker.io -y &> /dev/null"
+    SSH "sudo apt install docker-buildx -y &> /dev/null"
     SSH "sudo apt install docker-compose -y &> /dev/null"
     SSH "sudo apt install docker-compose-v2 -y &> /dev/null"
     SSH "sudo apt install postgresql-client -y &> /dev/null"
